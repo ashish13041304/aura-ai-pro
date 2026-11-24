@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AURA AI PRO</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial}
+body{background:#090d16;color:#e2e8f0;display:flex;flex-direction:column;min-height:100vh;font-size:12px}
+.top{background:#111827;padding:6px 8px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;border-bottom:1px solid #f59e0b}
+select,button,input{background:#1f2937;color:#fff;border:1px solid #374151;padding:4px 6px;border-radius:4px;font-size:11px}
+.on{background:#10b981!important;font-weight:bold;color:#000!important}
+.off{background:#ef4444!important;font-weight:bold}
+.box{height:54vh;min-height:305px;position:relative;width:100%;background:#090d16}
+.ohlc{position:absolute;top:5px;left:6px;background:rgba(9,13,22,0.9);padding:4px 7px;border-radius:4px;font-size:10px;color:#e2e8f0;z-index:10;line-height:1.35;border:1px solid #f59e0b}
+.oc{position:absolute;top:42px;left:6px;display:flex;z-index:10;border:1px solid #374151;border-radius:4px;overflow:hidden}
+.oc button{border:none;border-radius:0;padding:5px 8px;font-size:10px}
+.oc input{width:40px;text-align:center;border:none;background:#090d16;font-size:11px;font-weight:bold}
+.ord-btn{position:absolute;top:5px;right:62px;background:#f59e0b;color:#000;border:none;font-weight:bold;padding:5px 8px;z-index:10}
+canvas{width:100%;height:100%;display:block}
+.bot{flex:1;min-height:235px;background:#111827;border-top:1px solid #f59e0b;display:flex;flex-direction:column}
+.tabs{display:flex;background:#1f2937}
+.tab{flex:1;text-align:center;padding:8px 2px;cursor:pointer;color:#9ca3af;font-weight:bold;font-size:11px}
+.tab.active{color:#f59e0b;border-bottom:2px solid #f59e0b;background:#111827}
+.tc{flex:1;overflow-y:auto;padding:6px;display:none}
+.tc.active{display:block}
+.st{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:#1f2937;padding:6px;border-radius:4px;margin-bottom:6px;font-size:11px;border:1px solid #374151}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{padding:5px 4px;border-bottom:1px solid #1f2937;text-align:left}
+.rw{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.rw input{width:120px}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:50;align-items:center;justify-content:center;padding:15px}
+.mbox{background:#1f2937;border:1px solid #f59e0b;border-radius:8px;padding:14px;width:100%;max-width:310px}
+</style>
+</head>
+<body>
+<div class="top">
+<b style="color:#f59e0b">⚡ AURA AI PRO</b>
+<select id="sym" onchange="cs=new Array();load()">
+<option value="XBTUSD">BTC/USDT (24x7)</option>
+<option value="ETHUSD">ETH/USDT (24x7)</option>
+<option value="NIFTY50">NIFTY 50 (NSE)</option>
+<option value="BANKNIFTY">BANK NIFTY (NSE)</option>
+<option value="EURUSD">EUR/USD (Forex)</option>
+</select>
+<select id="tf" onchange="cs=new Array();load()">
+<option value="5s">5s</option>
+<option value="10s">10s</option>
+<option value="15s">15s</option>
+<option value="1">M1</option>
+<option value="5" selected>M5</option>
+<option value="15">M15</option>
+<option value="60">H1</option>
+</select>
+<button id="ab" class="on">ALGO: 24x7 ON</button>
+<span id="sig" style="font-size:10px;font-weight:bold;margin-left:auto;color:#f59e0b">● ADAPTIVE</span>
+</div>
+
+<div class="box">
+<div class="ohlc" id="inf">Starting AURA AI PRO...</div>
+<div class="oc">
+<button class="off" onclick="ord('SELL')">SELL</button>
+<input id="lot" value="0.3" type="number" step="0.1">
+<button class="on" onclick="ord('BUY')">BUY</button>
+</div>
+<button class="ord-btn" onclick="openM()">+ ORDER</button>
+<canvas id="cv"></canvas>
+</div>
+
+<div class="bot">
+<div class="tabs">
+<div class="tab" onclick="setT(0,this)">Quotes</div>
+<div class="tab active" onclick="setT(1,this)">Trade (<span id="pc">0</span>)</div>
+<div class="tab" onclick="setT(2,this)">History (<span id="hc">0</span>)</div>
+<div class="tab" onclick="setT(3,this)">Logs</div>
+<div class="tab" onclick="setT(4,this)">Algo</div>
+</div>
+
+<div class="tc" id="t0"><table><thead><tr><th>Symbol</th><th>Bid</th><th>Ask</th><th>Market</th><th>Open</th></tr></thead><tbody id="qb"></tbody></table></div>
+
+<div class="tc active" id="t1">
+<div class="st">
+<div>Bal: $<b id="bal" style="color:#f59e0b">10000.00</b></div>
+<div>Eq: $<b id="eq">10000.00</b></div>
+<div>P&L: $<b id="pnl">0.00</b></div>
+<div>Mrg: $<b id="mrg">0.00</b></div>
+<div>Free: $<b id="fmrg">10000.00</b></div>
+<div>Win: <b id="wr" style="color:#10b981">0%</b></div>
+</div>
+<table><thead><tr><th>Sym</th><th>Side</th><th>Vol</th><th>Entry</th><th>SL/TP</th><th>P&L</th><th>X</th></tr></thead><tbody id="pb"></tbody></table>
+</div>
+
+<div class="tc" id="t2"><table><thead><tr><th>Sym</th><th>Side</th><th>Vol</th><th>Open</th><th>Close</th><th>Profit</th></tr></thead><tbody id="hb"></tbody></table></div>
+<div class="tc" id="t3"><div id="jb" style="font-family:monospace;font-size:10px;line-height:1.5;color:#fcd34d"></div></div>
+
+<div class="tc" id="t4">
+<div style="background:#1f2937;padding:8px;border-radius:4px;margin-bottom:8px;border:1px solid #f59e0b;font-size:11px">
+<b>⚡ AURA Self-Adaptive AI Engine:</b><br>
+• Auto-switches between <b>TREND</b> & <b>RANGE</b> modes.<br>
+• Instant <b>AUTO-FLIP</b> on sudden market reversal.<br>
+• Auto-locks Break-Even & books <b>+$12</b> quick profit.
+</div>
+<button class="off" style="width:100%;padding:8px" onclick="clsAll()">Close All Active Trades</button>
+</div>
+</div>
+
+<div class="modal" id="om">
+<div class="mbox">
+<h4 style="margin-bottom:10px;color:#f59e0b">AURA AI Order Execution</h4>
+<div class="rw"><span>Lot Volume:</span><input type="number" id="mLot" value="0.3" step="0.1"></div>
+<div style="display:flex;gap:8px;margin-top:10px">
+<button class="off" style="flex:1;padding:8px" onclick="mOrd('SELL')">SELL</button>
+<button class="on" style="flex:1;padding:8px" onclick="mOrd('BUY')">BUY</button>
+</div>
+<button style="width:100%;margin-top:6px" onclick="document.getElementById('om').style.display='none'">Cancel</button>
+</div>
+  </div>
+<script>
+let cs=new Array(), pos=new Array(), hist=new Array(), logs=new Array();
+let liveP={XBTUSD:0,ETHUSD:0,NIFTY50:0,BANKNIFTY:0,EURUSD:0};
+let bal=10000, cur=0, algo=true;
+
+function isOp(s){
+  if(s==='XBTUSD'||s==='ETHUSD')return{op:true,st:'AURA 24x7 LIVE'};
+  const d=new Date(), day=d.getUTCDay();
+  if(day===0||day===6)return{op:false,st:'CLOSED (WEEKEND)'};
+  if(s==='EURUSD')return{op:true,st:'FOREX LIVE'};
+  const ist=new Date(d.getTime()+19800000).toISOString().slice(0,10);
+  if(ist==='2026-11-24'||ist==='2026-12-25'||ist==='2027-01-26')return{op:false,st:'NSE HOLIDAY'};
+  const m=((d.getUTCHours()*60+d.getUTCMinutes()+330)%1440);
+  return(m>=555&&m<=930)?{op:true,st:'NSE LIVE'}:{op:false,st:'NSE CLOSED'};
+}
+function fmt(s,v){return(+v).toFixed(s==='EURUSD'?4:2);}
+function setT(i,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('t'+i).classList.add('active');
+}
+async function sendCmd(q){
+  try{await fetch('/api/cmd?'+q,{method:'POST'});load();}catch(e){}
+}
+function togAlgo(){sendCmd('act=tog');}
+function openM(){
+  const s=document.getElementById('sym').value;
+  if(!isOp(s).op){alert('Market Closed!');return;}
+  document.getElementById('om').style.display='flex';
+}
+function ord(side){
+  const s=document.getElementById('sym').value;
+  if(!isOp(s).op){alert('Market Closed!');return;}
+  const l=+document.getElementById('lot').value||0.3;
+  sendCmd('act=ord&s='+s+'&side='+side+'&l='+l);
+}
+function mOrd(side){
+  const s=document.getElementById('sym').value;
+  const l=+document.getElementById('mLot').value||0.3;
+  document.getElementById('om').style.display='none';
+  sendCmd('act=ord&s='+s+'&side='+side+'&l='+l);
+}
+function cls(id){sendCmd('act=cls&oid='+id);}
+function clsAll(){sendCmd('act=clsAll');}
+
+async function load(){
+  const s=document.getElementById('sym').value, tfVal=document.getElementById('tf').value;
+  const isSec=tfVal.endsWith('s');
+  const secStep=isSec?parseInt(tfVal):0;
+  const iv=isSec?'1':tfVal;
+  try{
+    const r=await fetch('/api/live?pair='+s+'&iv='+iv+'&_='+Date.now());
+    const j=await r.json();
+    if(j.prices)liveP=j.prices;
+    if(j.cloud){
+      bal=j.cloud.bal;
+      pos=j.cloud.pos||new Array();
+      hist=j.cloud.hist||new Array();
+      logs=j.cloud.logs||new Array();
+      algo=j.cloud.algo;
+      const b=document.getElementById('ab');
+      b.innerText=algo?'ALGO: 24x7 ON':'ALGO: OFF';
+      b.className=algo?'on':'off';
+    }
+    if(j.ok&&j.c&&j.c.length){
+      const raw=j.c.map(k=>({t:+k.at(0),o:+fmt(s,k.at(1)),h:+fmt(s,k.at(2)),l:+fmt(s,k.at(3)),c:+fmt(s,k.at(4))}));
+      cur=raw.at(-1).c;
+      if(isSec){
+        const nowS=Math.floor(Date.now()/1000);
+        const bucket=nowS-(nowS%secStep);
+        if(!cs.length){cs=raw.slice(-25);}
+        const lc=cs.at(-1);
+        if(lc.t===bucket){
+          lc.c=cur;if(cur>lc.h)lc.h=cur;if(cur<lc.l)lc.l=cur;
+        }else{
+          cs.push({t:bucket,o:cur,h:cur,l:cur,c:cur});
+          if(cs.length>45)cs.shift();
+        }
+      }else{
+        cs=raw;
+      }
+      draw();ui();
+    }
+  }catch(e){}
+}
+
+function draw(){
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const W=cv.width=cv.clientWidth, H=cv.height=cv.clientHeight;
+  ctx.fillStyle='#090d16';ctx.fillRect(0,0,W,H);if(!cs.length)return;
+  const s=document.getElementById('sym').value, st=isOp(s), cw=W-58, ch=H-76, rTop=H-60, rH=40;
+  let mn=Math.min(...cs.map(c=>c.l)), mx=Math.max(...cs.map(c=>c.h));
+  pos.filter(x=>x.s===s).forEach(x=>{if(x.sl>0)mn=Math.min(mn,x.sl);if(x.tp>0)mx=Math.max(mx,x.tp);});
+  const pad=(mx-mn)*0.12||1;mn-=pad;mx+=pad;const yOf=v=>10+ch-((v-mn)/(mx-mn))*ch;
+
+  ctx.strokeStyle='#1f2937';ctx.fillStyle='#9ca3af';ctx.font='10px Arial';
+  for(let i=0;i<=4;i++){const y=10+(ch/4)*i, val=fmt(s,mx-((mx-mn)/4)*i);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();ctx.fillText(val,cw+4,y+3);}
+  const step=cw/cs.length, bw=Math.max(step*0.65,3);
+  let e9=cs.at(0).c, e21=e9, p9=new Array(), p21=new Array(), rPts=new Array();
+  cs.forEach((c,i)=>{
+    const x=i*step+step/2, col=c.c>=c.o?'#10b981':'#ef4444';
+    ctx.strokeStyle=col;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x,yOf(c.h));ctx.lineTo(x,yOf(c.l));ctx.stroke();
+    const yo=yOf(c.o), yc=yOf(c.c);ctx.fillRect(x-bw/2,Math.min(yo,yc),bw,Math.max(Math.abs(yc-yo),2));
+    e9=c.c*0.2+e9*0.8;e21=c.c*0.09+e21*0.91;p9.push({x,y:yOf(e9)});p21.push({x,y:yOf(e21)});
+    let rv=50;if(i>=5){let g=0,l=0;for(let j=i-4;j<=i;j++){const df=cs.at(j).c-cs.at(j-1).c;df>=0?g+=df:l-=df;}rv=100-(100/(1+(g/(l||0.0001))));}
+    rPts.push({x,y:rTop+rH-(rv/100)*rH});
+    if(i%8===0&&c.t){
+      const tm=new Date(c.t*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      ctx.fillStyle='#9ca3af';ctx.font='9px Arial';ctx.fillText(tm,i*step,H-3);
+    }
+  });
+  new Array(new Array(p9,'#f59e0b'),new Array(p21,'#38bdf8')).forEach(it=>{const pts=it.at(0), c=it.at(1);ctx.strokeStyle=c;ctx.lineWidth=1.3;ctx.beginPath();pts.forEach((pt,i)=>i?ctx.lineTo(pt.x,pt.y):ctx.moveTo(pt.x,pt.y));ctx.stroke();});
+  ctx.strokeStyle='#374151';ctx.beginPath();ctx.moveTo(0,rTop-4);ctx.lineTo(W,rTop-4);ctx.stroke();
+  ctx.fillStyle='#9ca3af';ctx.fillText('RSI(14)',4,rTop+8);
+  ctx.strokeStyle='#c084fc';ctx.lineWidth=1.2;ctx.beginPath();rPts.forEach((pt,i)=>i?ctx.lineTo(pt.x,pt.y):ctx.moveTo(pt.x,pt.y));ctx.stroke();
+
+  pos.filter(x=>x.s===s).forEach(x=>{
+    new Array(new Array(x.o,'#f59e0b','AURA '+x.t),new Array(x.sl,'#ef4444','SL'),new Array(x.tp,'#10b981','TP')).forEach(it=>{
+      const v=it.at(0), c=it.at(1), lbl=it.at(2);if(v>0){const py=yOf(v);ctx.strokeStyle=c;ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(cw,py);ctx.stroke();ctx.fillStyle=c;ctx.fillText(lbl,4,py-2);}
+    });
+  });
+  const lc=cs.at(-1), ly=yOf(cur);ctx.strokeStyle='#f59e0b';ctx.beginPath();ctx.moveTo(0,ly);ctx.lineTo(cw,ly);ctx.stroke();
+  ctx.fillStyle='#f59e0b';ctx.fillRect(cw,ly-8,56,16);ctx.fillStyle='#000';ctx.fillText(fmt(s,cur),cw+3,ly+4);
+  document.getElementById('inf').innerHTML='<b style="color:'+(st.op?'#10b981':'#ef4444')+'">● '+st.st+'</b> | '+s+'<br>O:'+lc.o+' H:'+lc.h+' L:'+lc.l+' C:<b>'+lc.c+'</b>';
+}
+
+function ui(){
+  const pnl=pos.reduce((a,b)=>a+b.p,0), mrg=pos.reduce((a,b)=>a+b.l*100,0), eq=bal+pnl;
+  const wins=hist.filter(x=>x.p>0).length, wr=hist.length?Math.round((wins/hist.length)*100):0;
+  document.getElementById('pc').innerText=pos.length;document.getElementById('hc').innerText=hist.length;
+  document.getElementById('bal').innerText=bal.toFixed(2);document.getElementById('eq').innerText=eq.toFixed(2);
+  document.getElementById('pnl').innerText=pnl.toFixed(2);document.getElementById('mrg').innerText=mrg.toFixed(2);
+  document.getElementById('fmrg').innerText=(eq-mrg).toFixed(2);document.getElementById('wr').innerText=wr+'%';
+  document.getElementById('qb').innerHTML=Object.keys(liveP).map(k=>{const st=isOp(k), b=liveP[k]?fmt(k,liveP[k]):'...', a=liveP[k]?fmt(k,+liveP[k]+(k==='EURUSD'?0.0002:liveP[k]*0.00015)):'...';return '<tr><td><b>'+k+'</b></td><td style="color:#ef4444">'+b+'</td><td style="color:#f59e0b">'+a+'</td><td>'+st.st+'</td><td><button onclick="opCh(\''+k+'\')">Chart</button></td></tr>';}).join('');
+  document.getElementById('pb').innerHTML=pos.map(x=>'<tr><td><b>'+x.s+'</b></td><td style="color:'+(x.t==='BUY'?'#10b981':'#ef4444')+'">'+x.t+'</td><td>'+x.l+'</td><td>'+x.o+'</td><td>'+x.sl+'/'+x.tp+'</td><td style="color:'+(x.p>=0?'#10b981':'#ef4444')+';font-weight:bold">'+x.p.toFixed(2)+'</td><td><button onclick="cls('+x.id+')">X</button></td></tr>').join('');
+  document.getElementById('hb').innerHTML=hist.map(x=>'<tr><td>'+x.s+'</td><td>'+x.t+'</td><td>'+x.l+'</td><td>'+x.o+'</td><td>'+x.c+'</td><td style="color:'+(x.p>=0?'#10b981':'#ef4444')+'">'+x.p.toFixed(2)+'</td></tr>').join('');
+  document.getElementById('jb').innerHTML=logs.map(x=>'<div>'+x+'</div>').join('');
+}
+function opCh(k){document.getElementById('sym').value=k;cs=new Array();load();}
+document.getElementById('ab').onclick=togAlgo;
+
+window.onload=()=>{load();setInterval(load,1500);};
+</script>
+</body>
+</html>
