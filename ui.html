@@ -89,7 +89,7 @@ th,td{padding:5px 4px;border-bottom:1px solid #1f2937;text-align:left}
 <table><thead><tr><th>Sym</th><th>Side</th><th>Vol</th><th>Entry</th><th>SL/TP</th><th>P&L</th><th>X</th></tr></thead><tbody id="pb"></tbody></table>
 </div>
 
-<div class="tc" id="t2"><table><thead><tr><th>Sym</th><th>Side</th><th>Vol</th><th>Open</th><th>Close</th><th>Profit</th></tr></thead><tbody id="hb"></tbody></table></div>
+<div class="tc" id="t2"><table><thead><tr><th>Sym</th><th>Side</th><th>Vol</th><th>Open</th><th>Close</th><th>Fee</th>Profit</th></tr></thead><tbody id="hb"></tbody></table></div>
 <div class="tc" id="t3"><div id="jb" style="font-family:monospace;font-size:10px;line-height:1.5;color:#fcd34d"></div></div>
 
 
@@ -276,7 +276,7 @@ function ui(){
   document.getElementById('fmrg').innerText=(eq-mrg).toFixed(2);document.getElementById('wr').innerText=wr+'%';
   document.getElementById('qb').innerHTML=Object.keys(liveP).map(k=>{const st=isOp(k), b=liveP[k]?fmt(k,liveP[k]):'...', a=liveP[k]?fmt(k,+liveP[k]+(k==='EURUSD'?0.0002:liveP[k]*0.00015)):'...';return '<tr><td><b>'+k+'</b></td><td style="color:#ef4444">'+b+'</td><td style="color:#f59e0b">'+a+'</td><td>'+st.st+'</td><td><button onclick="opCh(\''+k+'\')">Chart</button></td></tr>';}).join('');
   document.getElementById('pb').innerHTML=pos.map(x=>'<tr><td><b>'+x.s+'</b></td><td style="color:'+(x.t==='BUY'?'#10b981':'#ef4444')+'">'+x.t+'</td><td>'+x.l+'</td><td>'+x.o+'</td><td>'+x.sl+'/'+x.tp+'</td><td style="color:'+(x.p>=0?'#10b981':'#ef4444')+';font-weight:bold">'+x.p.toFixed(2)+'</td><td><button onclick="cls('+x.id+')">X</button></td></tr>').join('');
-  document.getElementById('hb').innerHTML=hist.map(x=>'<tr><td>'+x.s+'</td><td>'+x.t+'</td><td>'+x.l+'</td><td>'+x.o+'</td><td>'+x.c+'</td><td style="color:'+(x.p>=0?'#10b981':'#ef4444')+'">'+x.p.toFixed(2)+'</td></tr>').join('');
+  document.getElementById('hb').innerHTML=hist.map(x=>'<tr><td>'+x.s+'</td><td>'+x.t+'</td><td>'+x.l+'</td><td>'+x.o+'</td><td>'+x.c+'</td><td style="color:#f59e0b">-$'+(x.brk||0).toFixed(2)+'</td><td style="color:'+(x.p>=0?'#10b981':'#ef4444')+'">'+x.p.toFixed(2)+'</td></tr>').join('');
   document.getElementById('jb').innerHTML=logs.map(x=>'<div>'+x+'</div>').join('');
 }
 function opCh(k){document.getElementById('sym').value=k;cs=new Array();load();}
