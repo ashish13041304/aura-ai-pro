@@ -10,10 +10,9 @@ cloud_state = {
     "bal": 10000.0,
     "pos": list(),
     "hist": list(),
-    "logs": list(["[AURA AI PRO] Self-Adaptive Trend + Range + Auto-Flip Engine Active!"]),
+    "logs": list(["[AURA LONG-LIFE V8] Auto-ATR + Live Config + Real Brokerage Active!"]),
     "algo": True,
-    "sentiment": {"val": 50, "label": "Neutral", "ts": 0},
-    "cfg": {"conf": 75, "lot": 0.3, "sl": 0.18, "tp": 0.35, "mx": 4},
+    "cfg": {"mode": "AUTO", "lot": 0.3, "sl": 0.18, "tp": 0.35, "mx": 3, "brk": True},
     "last_t": 0
 }
 prices = {"XBTUSD": 0.0, "ETHUSD": 0.0, "NIFTY50": 0.0, "BANKNIFTY": 0.0, "EURUSD": 0.0}
@@ -58,6 +57,17 @@ def is_open(s):
 def get_c(row, idx):
     return float(tuple(row)[idx])
 
+def calc_brokerage(s, entry, exit_p, lot):
+    if not cloud_state["cfg"].get("brk", True):
+        return 0.0
+    if s in ("XBTUSD", "ETHUSD"):
+        notional = (entry + exit_p) * lot
+        return round(notional * 0.0005, 2)
+    elif s in ("NIFTY50", "BANKNIFTY"):
+        return round(0.65 + (entry + exit_p) * lot * 0.00004, 2)
+    else:
+        return round(7.0 * lot, 2)
+
 def fetch_feed(pair, iv=5):
     hdr = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -96,9 +106,15 @@ def fetch_feed(pair, iv=5):
         return candles_cache.get(f"{pair}_{iv}", list())
 def background_24x7_bot():
     cd_map = dict()
+    loss_streak = 0
+    pause_until = 0
     while True:
         try:
             now = time.time()
+            if now < pause_until:
+                time.sleep(5)
+                continue
+            cfg = cloud_state["cfg"]
             for s in ("XBTUSD", "ETHUSD", "NIFTY50", "BANKNIFTY", "EURUSD"):
                 if not is_open(s):
                     continue
@@ -123,34 +139,45 @@ def background_24x7_bot():
                 for x in list(cloud_state["pos"]):
                     if x["s"] == s:
                         diff = (cur - x["o"]) if x["t"] == "BUY" else (x["o"] - cur)
-                        x["p"] = round(diff * x["l"] * mult, 2)
-                        be_pct = 0.0007 if s in ("NIFTY50", "BANKNIFTY", "EURUSD") else 0.0012
-                        if not x["be"] and diff >= x["o"] * be_pct:
+                        gross_p = diff * x["l"] * mult
+                        brk = calc_brokerage(s, x["o"], cur, x["l"])
+                        x["brk"] = brk
+                        x["p"] = round(gross_p - brk, 2)
+                        if not x["be"] and x["p"] >= 3.5:
                             x["sl"] = x["o"]
                             x["be"] = True
                             add_log(f"Break-Even Lock: {s} SL @ {x['o']}")
 
-                        flip_sell = (x["t"] == "BUY" and cur < e9 < e21 and x["p"] <= -4.0)
-                        flip_buy = (x["t"] == "SELL" and cur > e9 > e21 and x["p"] <= -4.0)
-                        ema_profit = (x["p"] >= 3.0) and ((x["t"] == "BUY" and cur < e9) or (x["t"] == "SELL" and cur > e9))
+                        flip_sell = (x["t"] == "BUY" and cur < e9 < e21 and x["p"] <= -4.5)
+                        flip_buy = (x["t"] == "SELL" and cur > e9 > e21 and x["p"] <= -4.5)
+                        ema_profit = (x["p"] >= 3.5) and ((x["t"] == "BUY" and cur < e9) or (x["t"] == "SELL" and cur > e9))
                         h_sl = x["sl"] > 0 and ((x["t"] == "BUY" and cur <= x["sl"]) or (x["t"] == "SELL" and cur >= x["sl"]))
                         h_tp = x["tp"] > 0 and ((x["t"] == "BUY" and cur >= x["tp"]) or (x["t"] == "SELL" and cur <= x["tp"]))
 
-                        if h_sl or h_tp or ema_profit or flip_sell or flip_buy or x["p"] <= -14.0 or x["p"] >= 12.0:
+                        if h_sl or h_tp or ema_profit or flip_sell or flip_buy or x["p"] <= -14.0 or x["p"] >= 14.0:
                             cloud_state["pos"].remove(x)
                             cloud_state["bal"] = round(cloud_state["bal"] + x["p"], 2)
                             cloud_state["hist"].insert(0, {**x, "c": cur})
+                            if x["p"] < 0:
+                                loss_streak += 1
+                                if loss_streak >= 2:
+                                    pause_until = now + 1800
+                                    loss_streak = 0
+                                    add_log("[SHIELD] 2 Losses -> 30m Auto-Cooloff Activated!")
+                            else:
+                                loss_streak = 0
+
                             if (flip_sell or flip_buy) and cloud_state["algo"]:
                                 new_side = "SELL" if flip_sell else "BUY"
-                                sl_d = cur * 0.0020
-                                tp_d = cur * 0.0035
+                                sl_d = cur * (cfg["sl"] / 100.0)
+                                tp_d = cur * (cfg["tp"] / 100.0)
                                 n_sl = round(cur - sl_d if new_side == "BUY" else cur + sl_d, dec)
                                 n_tp = round(cur + tp_d if new_side == "BUY" else cur - tp_d, dec)
-                                cloud_state["pos"].append({"id": int(now * 1000) % 99999, "s": s, "t": new_side, "l": x["l"], "o": cur, "sl": n_sl, "tp": n_tp, "p": 0.0, "be": False})
-                                add_log(f"AUTO-FLIP {x['t']}->{new_side} {s} @ {cur} (Locked P&L: ${x['p']})")
+                                cloud_state["pos"].append({"id": int(now * 1000) % 99999, "s": s, "t": new_side, "l": x["l"], "o": cur, "sl": n_sl, "tp": n_tp, "p": 0.0, "brk": 0.0, "be": False})
+                                add_log(f"AUTO-FLIP {x['t']}->{new_side} {s} (Net P&L: ${x['p']}, Brk: ${brk})")
                             else:
                                 cd_map[s] = now + (180 if x["p"] < 0 else 45)
-                                add_log(f"Exit {x['t']} {s} P&L: ${x['p']}")
+                                add_log(f"Exit {x['t']} {s} Net P&L: ${x['p']} (Brk/Tax: ${brk})")
 
                 if now < cd_map.get(s, 0):
                     continue
@@ -163,7 +190,8 @@ def background_24x7_bot():
 
                 pos_in_range = (cur - lo_20) / rng_20
                 ema_gap_pct = (abs(e9 - e21) / cur) * 100.0
-                mode = "TREND" if ema_gap_pct >= 0.08 else "RANGE"
+                user_mode = cfg.get("mode", "AUTO")
+                mode = ("TREND" if ema_gap_pct >= 0.08 else "RANGE") if user_mode == "AUTO" else user_mode
 
                 g, l = 0.0, 0.0
                 for i in range(len(cl) - 14, len(cl)):
@@ -181,24 +209,21 @@ def background_24x7_bot():
                     elif cur < e9 < e21 and 30 <= rsi <= 50 and pos_in_range >= 0.20:
                         sig = "SELL"
                 else:
-                    if pos_in_range <= 0.32 and rsi <= 44 and cur > prev_c:
+                    if pos_in_range <= 0.35 and rsi <= 45 and cur > prev_c:
                         sig = "BUY"
-                    elif pos_in_range >= 0.68 and rsi >= 56 and cur < prev_c:
+                    elif pos_in_range >= 0.65 and rsi >= 55 and cur < prev_c:
                         sig = "SELL"
 
-                cfg = cloud_state["cfg"]
-                if sig and cloud_state["algo"] and len(cloud_state["pos"]) < cfg["mx"]:
+                if sig and cloud_state["algo"] and len(cloud_state["pos"]) < int(cfg["mx"]):
                     if not any(p["s"] == s for p in cloud_state["pos"]):
-                        lot_sz = 0.25 if s == "ETHUSD" else 0.35
-                        sl_pct = 0.16 if mode == "RANGE" else 0.22
-                        tp_pct = 0.28 if mode == "RANGE" else 0.45
-                        sl_d = cur * (sl_pct / 100.0)
-                        tp_d = cur * (tp_pct / 100.0)
+                        lot_sz = float(cfg["lot"])
+                        sl_d = cur * (float(cfg["sl"]) / 100.0)
+                        tp_d = cur * (float(cfg["tp"]) / 100.0)
                         sl = round(cur - sl_d if sig == "BUY" else cur + sl_d, dec)
                         tp = round(cur + tp_d if sig == "BUY" else cur - tp_d, dec)
-                        cloud_state["pos"].append({"id": int(now * 1000) % 99999, "s": s, "t": sig, "l": lot_sz, "o": cur, "sl": sl, "tp": tp, "p": 0.0, "be": False})
+                        cloud_state["pos"].append({"id": int(now * 1000) % 99999, "s": s, "t": sig, "l": lot_sz, "o": cur, "sl": sl, "tp": tp, "p": 0.0, "brk": 0.0, "be": False})
                         cd_map[s] = now + 60
-                        add_log(f"[{mode}] {sig} {s} @ {cur} (RSI:{round(rsi,1)} Zone:{round(pos_in_range*100)}%)")
+                        add_log(f"[{mode}] {sig} {lot_sz} {s} @ {cur} (RSI:{round(rsi,1)})")
         except Exception:
             pass
         time.sleep(5)
@@ -214,7 +239,14 @@ def home():
 def live_proxy(pair: str = "XBTUSD", iv: int = 5):
     cs = fetch_feed(pair, iv)
     return {"ok": len(cs) > 0, "c": cs, "cloud": cloud_state, "prices": prices}
-    
+
+@app.post("/api/cfg")
+def update_cfg(mode: str = "AUTO", lot: float = 0.3, sl: float = 0.18, tp: float = 0.35, mx: int = 3, brk: int = 1):
+    cloud_state["cfg"] = {"mode": mode, "lot": lot, "sl": sl, "tp": tp, "mx": mx, "brk": bool(brk)}
+    save_db()
+    add_log(f"Live Config Saved: {mode} | Lot:{lot} SL:{sl}% TP:{tp}% Max:{mx} Brk:{'ON' if brk else 'OFF'}")
+    return {"ok": True}
+
 @app.post("/api/sync")
 def sync_restore(data: dict):
     if cloud_state["bal"] == 10000.0 and len(cloud_state["hist"]) == 0 and data.get("hist"):
@@ -227,7 +259,7 @@ def sync_restore(data: dict):
 def cloud_cmd(act: str, s: str = "XBTUSD", side: str = "BUY", l: float = 0.2, oid: int = 0):
     cur = prices.get(s, 0.0)
     if act == "ord" and cur > 0:
-        cloud_state["pos"].append({"id": int(time.time() * 1000) % 99999, "s": s, "t": side, "l": l, "o": cur, "sl": 0.0, "tp": 0.0, "p": 0.0, "be": False})
+        cloud_state["pos"].append({"id": int(time.time() * 1000) % 99999, "s": s, "t": side, "l": l, "o": cur, "sl": 0.0, "tp": 0.0, "p": 0.0, "brk": 0.0, "be": False})
         add_log(f"Manual {side} {l} {s} @ {cur}")
     elif act == "cls":
         for x in list(cloud_state["pos"]):
@@ -235,7 +267,7 @@ def cloud_cmd(act: str, s: str = "XBTUSD", side: str = "BUY", l: float = 0.2, oi
                 cloud_state["pos"].remove(x)
                 cloud_state["bal"] = round(cloud_state["bal"] + x["p"], 2)
                 cloud_state["hist"].insert(0, {**x, "c": prices.get(x["s"], x["o"])})
-                add_log(f"Closed {x['s']} P&L: ${x['p']}")
+                add_log(f"Closed {x['s']} Net P&L: ${x['p']} (Brk: ${x.get('brk',0)})")
     elif act == "clsAll":
         for x in list(cloud_state["pos"]):
             cloud_state["bal"] = round(cloud_state["bal"] + x["p"], 2)
@@ -249,4 +281,4 @@ def cloud_cmd(act: str, s: str = "XBTUSD", side: str = "BUY", l: float = 0.2, oi
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)
-                      
+    
