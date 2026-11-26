@@ -92,7 +92,18 @@ th,td{padding:5px 4px;border-bottom:1px solid #1f2937;text-align:left}
 <div class="tc" id="t2"><table><thead><tr><th>Sym</th><th>Side</th><th>Vol</th><th>Open</th><th>Close</th><th>Profit</th></tr></thead><tbody id="hb"></tbody></table></div>
 <div class="tc" id="t3"><div id="jb" style="font-family:monospace;font-size:10px;line-height:1.5;color:#fcd34d"></div></div>
 
+
 <div class="tc" id="t4">
+<div class="rw"><span>AI Strategy Mode:</span><select id="cMode" style="width:120px"><option value="AUTO">AUTO-AI (Smart)</option><option value="TREND">TREND ONLY</option><option value="RANGE">RANGE SCALP</option></select></div>
+<div class="rw"><span>Lot Size:</span><input type="number" id="cLot" value="0.3" step="0.1"></div>
+<div class="rw"><span>Stop-Loss (%):</span><input type="number" id="cSl" value="0.18" step="0.01"></div>
+<div class="rw"><span>Take-Profit (%):</span><input type="number" id="cTp" value="0.35" step="0.01"></div>
+<div class="rw"><span>Max Open Trades:</span><input type="number" id="cMx" value="3"></div>
+<div class="rw"><span>Real Brokerage/Tax:</span><select id="cBrk" style="width:120px"><option value="1">ON (Real Fees)</option><option value="0">OFF (Zero Fee)</option></select></div>
+<button class="on" style="width:100%;padding:8px;margin-bottom:6px" onclick="saveCfg()">Save Live Settings (No Code)</button>
+<button class="off" style="width:100%;padding:7px" onclick="clsAll()">Close All Active Trades</button>
+</div>
+  
 <div style="background:#1f2937;padding:8px;border-radius:4px;margin-bottom:8px;border:1px solid #f59e0b;font-size:11px">
 <b>⚡ AURA Self-Adaptive AI Engine:</b><br>
 • Auto-switches between <b>TREND</b> & <b>RANGE</b> modes.<br>
@@ -137,8 +148,14 @@ function setT(i,el){
   document.getElementById('t'+i).classList.add('active');
 }
 async function sendCmd(q){
-  try{await fetch('/api/cmd?'+q,{method:'POST'});load();}catch(e){}
+  const u=q.startsWith('act=cfg')?'/api/cfg?':'/api/cmd?';
+  try{await fetch(u+q,{method:'POST'});load();}catch(e){}
 }
+function saveCfg(){
+  const m=document.getElementById('cMode').value, l=document.getElementById('cLot').value, sl=document.getElementById('cSl').value, tp=document.getElementById('cTp').value, mx=document.getElementById('cMx').value, brk=document.getElementById('cBrk').value;
+  sendCmd('act=cfg&mode='+m+'&lot='+l+'&sl='+sl+'&tp='+tp+'&mx='+mx+'&brk='+brk).then(()=>alert('Live Settings Applied!'));
+}
+  
 function togAlgo(){sendCmd('act=tog');}
 function openM(){
   const s=document.getElementById('sym').value;
