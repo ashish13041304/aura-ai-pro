@@ -214,6 +214,14 @@ def home():
 def live_proxy(pair: str = "XBTUSD", iv: int = 5):
     cs = fetch_feed(pair, iv)
     return {"ok": len(cs) > 0, "c": cs, "cloud": cloud_state, "prices": prices}
+    
+@app.post("/api/sync")
+def sync_restore(data: dict):
+    if cloud_state["bal"] == 10000.0 and len(cloud_state["hist"]) == 0 and data.get("hist"):
+        cloud_state["bal"] = float(data.get("bal", 10000.0))
+        cloud_state["hist"] = list(data.get("hist", []))
+        save_db()
+    return {"ok": True}
 
 @app.post("/api/cmd")
 def cloud_cmd(act: str, s: str = "XBTUSD", side: str = "BUY", l: float = 0.2, oid: int = 0):
