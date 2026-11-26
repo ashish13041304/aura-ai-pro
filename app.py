@@ -104,7 +104,7 @@ def fetch_feed(pair, iv=5):
         return cs
     except Exception:
         return candles_cache.get(f"{pair}_{iv}", list())
-def background_24x7_bot():
+    def background_24x7_bot():
     cd_map = dict()
     loss_streak = 0
     pause_until = 0
@@ -281,4 +281,4 @@ def cloud_cmd(act: str, s: str = "XBTUSD", side: str = "BUY", l: float = 0.2, oi
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=10000)
-    
+                                
