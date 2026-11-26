@@ -104,7 +104,7 @@ def fetch_feed(pair, iv=5):
         return cs
     except Exception:
         return candles_cache.get(f"{pair}_{iv}", list())
-    def background_24x7_bot():
+def background_24x7_bot():
     cd_map = dict()
     loss_streak = 0
     pause_until = 0
