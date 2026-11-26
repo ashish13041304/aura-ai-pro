@@ -170,15 +170,24 @@ async function load(){
     const j=await r.json();
     if(j.prices)liveP=j.prices;
     if(j.cloud){
-      bal=j.cloud.bal;
+      const bk=JSON.parse(localStorage.getItem('aura_bak')||'null');
+      if(j.cloud.hist&&j.cloud.hist.length){
+        localStorage.setItem('aura_bak',JSON.stringify({bal:j.cloud.bal,hist:j.cloud.hist}));
+        bal=j.cloud.bal;hist=j.cloud.hist;
+      }else if(bk&&bk.hist&&bk.hist.length){
+        bal=bk.bal;hist=bk.hist;
+        fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(bk)}).catch(()=>{});
+      }else{
+        bal=j.cloud.bal;hist=new Array();
+      }
       pos=j.cloud.pos||new Array();
-      hist=j.cloud.hist||new Array();
       logs=j.cloud.logs||new Array();
       algo=j.cloud.algo;
       const b=document.getElementById('ab');
       b.innerText=algo?'ALGO: 24x7 ON':'ALGO: OFF';
       b.className=algo?'on':'off';
     }
+    
     if(j.ok&&j.c&&j.c.length){
       const raw=j.c.map(k=>({t:+k.at(0),o:+fmt(s,k.at(1)),h:+fmt(s,k.at(2)),l:+fmt(s,k.at(3)),c:+fmt(s,k.at(4))}));
       cur=raw.at(-1).c;
